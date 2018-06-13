@@ -1,0 +1,248 @@
+Use cases for Go
+
+Taco de Wolff
+tacodewolff [at] gmail.com
+tacodewolff@gmail.com
+
+: Anekdote of me getting to use Go
+: Who is using Go at the moment?
+: What do you use it for?
+
+* Outline
+
+1. What is Go, and what can I use it for?
+2. Features & principles
+3. Garbage collection
+4. Tooling
+5. When you should use Go
+6. When you should _not_ use Go
+7. Getting started
+
+: History, design principles
+
+
+* What is Go?
+
+"Go is an open source programming language that makes it easy to build simple, reliable, and efficient software."
+
+.link http://golang.org
+
+Initiated in late 2007 and Go 1 released in 2012. Originally developed by Google.
+
+- Robert Griesemer, Rob Pike, Ken Thompson
+- Ian Lance Taylor, Russ Cox
+
+: Compare with Python versioning
+: Google -> scale problems -> next slide
+
+.image assets/Go_Logo_Aqua.svg
+
+: Pike was member of Unix team, Plan 9 for Bell Labs
+: Thompson was member of Unix team, Plan 9, created B
+: Griesemer worked on Google's V8 JavaScript
+: Taylor worked on GCC
+: Cox worked on Plan 9
+
+
+* Why was Go it developed?
+
+Design principles
+
+- Handle scale of software and scale of teams
+- Feature orthogonality, less is exponentially more
+- Optimizing compilation, execution and ease of programming
+
+Features
+
+- Concurrency & communication
+- Simplicity & opinionated
+- Garbage collected
+- Fast compilation to machine code (no VM)
+
+[[http://commandcenter.blogspot.com/2012/06/less-is-exponentially-more.html][Less is exponentially more (Pike, 2012)]]
+[[http://talks.golang.org/2012/splash.article][Go at Google: Language Design in the Service of Software Engineering (Pike, 2012)]]
+
+#.image assets/google-datacenter-tech-02.jpg
+
+: Opinionated: one way to do things, idiomatic
+: Statically typed, no type hierarchy, memory safe (nil/bounds checks)
+: No generics!?
+
+
+* Concurrency
+
+.play concurrency.go /func f/,/\)\n}/
+
+: Goroutines are not threads, can launch >100k
+: Can have millions of goroutines at the same time, cost 2kB in memory
+: HTTP package uses goroutines automatically per request
+
+
+* Clarity
+
+for-range
+
+    sum := 0
+    nums := []int{3, 4, 5, 6}
+    for _, num := range nums {
+        sum += num
+    }
+
+append
+
+    names := []string{}
+    names = append(names, "Wyatt Earp")
+
+explicit casting
+
+    var f32 float32 = 1.0
+    var f64 float64 = 2.0
+    sum := f32 + f64 // invalid operation: f32 + f64 (mismatched types float32 and float64)
+
+: Slow code tends to be long -> visual affirmation of slowness of code
+: Optimize clarity versus conciseness
+: No operator overloading
+
+
+* Verbose error handling
+
+    func write() {
+        f, err := os.Create("/tmp/dat1")
+        if err != nil {
+            log.Println("could not create file:", err)
+            return
+        }
+
+        _, err = f.WriteString("data")
+        if err != nil {
+            log.Println("could not write to file:", err)
+            return
+        }
+
+        if err = f.Close(); err != nil {
+            log.Println("could not close file:", err)
+            return
+        }
+    }
+
+: What's wrong? Defer missing!
+
+
+* Verbose error handling
+
+    func write() {
+        f, err := os.Create("/tmp/dat1")
+        if err != nil {
+            log.Println("could not create file:", err)
+            return
+        }
+
+        defer function(){
+            if err := f.Close(); err != nil {
+                log.Println("could not close file:", err)
+            }
+        }()
+
+        _, err = f.WriteString("data")
+        if err != nil {
+            log.Println("could not write to file:", err)
+            return
+        }
+    }
+
+
+* GC performance history
+
+: Used to be slow, now very small Stop-The-World
+: Anekdote about my dad using Cobol/C and hates GC
+
+* go 1.5
+
+.image assets/gct1.png _ 900
+
+: Concurrent and incremental GC, app doesn't have to stop for most of GC
+: 18GB data
+
+* go 1.6
+
+.image assets/gct2.png _ 900
+
+: More concurrent work
+
+* go 1.7
+
+.image assets/gct4.png _ 900
+
+* go 1.8 (beta 1)
+
+.image assets/gct5.png _ 700
+
+: Optimize throughput - Request Oriented Collector
+: Reclaim memory after requests to delay need for full GC cycle
+
+
+* Tooling
+
+`gofmt`, `goimports`, `metalinter`
+
+`go`tool`pprof`
+
+- profiling CPU, memory, goroutines, blocking
+- live data through HTTP endpoint
+
+.image assets/pprof.png _ 600
+
+: Transpilers
+: No default debugger, no default IDE
+: Editors: Vim, VisualCode, GoLand, Atom, Sublime
+
+
+* When is Go useful?
+
+- API servers
+- Microservices
+- System applications, tooling
+
+.image assets/companies.png _ 700
+
+: Big in Brazil, India, Indonesia, China, Japan (and USA & EU)
+: New Zealand: Vend, Movio, Weta Digital, Hapara, Spalk
+
+
+* When is Go less useful?
+
+- Real-time applications
+- GUI applications
+- Embedded software
+- Scientific code / data science
+- Front-end applications?
+
+: GC is fast but not zero
+: No good GUI libraries
+: No easy syntax for matrices / maths
+: Go 1.11 has WASM target
+
+
+* Getting started
+
+Take the Go Tour online
+
+.link http://tour.golang.org
+
+.link http://golang.org/wiki/Learn
+
+.link https://gobyexample.com
+
+Run a pilot project and start small to reduce cost & risks.
+
+1. Implement a small / independent feature in Go (eg. a microservice)
+2. Test and measure!
+3. Present your results to the team (performance, LOC, robustness, ...)
+
+
+* Closing remarks
+
+: Great and simple language
+: Good performance and easy to build APIs
+: Pleasure to work with
+

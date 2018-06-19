@@ -137,7 +137,7 @@ explicit casting
             return
         }
 
-        defer function(){
+        defer func(){
             if err := f.Close(); err != nil {
                 log.Println("could not close file:", err)
             }

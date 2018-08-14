@@ -1,0 +1,185 @@
+Performance optimization in Go
+
+Taco de Wolff
+tacodewolff [at] gmail.com
+tacodewolff@gmail.com
+
+.link https://github.com/tdewolff/minify
+
+: Slow program? Must have a loop.
+: Author of minify
+: Not about O-notation
+
+
+* Outline
+
+1. Benchmarking
+2. Tooling
+3. Go specifics
+4. Strings vs Bytes
+4. Garbage collection
+5. Best practises
+
+
+* Benchmarking
+
+Idiomatic way for performance measurements
+
+foo_test.go
+
+    package foo
+
+    import "testing"
+
+    func BenchmarkTest(b *testing.B) {
+        for i := 0; i < b.N; i++ {
+            // subject
+        }
+    }
+
+Run with `$ go test -bench=. -benchmem`
+
+* Benchmarking example
+
+    func BenchmarkStrings(b *testing.B) {
+        s := ""
+        for i := 0; i < b.N; i++ {
+            s += "x"
+        }
+    }
+
+    func BenchmarkStringsBuilder(b *testing.B) {
+        s := strings.Builder{}
+        for i := 0; i < b.N; i++ {
+            s.WriteString("x")
+        }
+    }
+
+    func BenchmarkBytesBuffer(b *testing.B) {
+        s := bytes.Buffer{}
+        for i := 0; i < b.N; i++ {
+            s.WriteString("x")
+        }
+    }
+
+* Benchmarking example output
+
+    $ go test -bench=. -benchmem
+    goos: linux
+    goarch: amd64
+    pkg: github.com/tdewolff/talks/20180821-performance
+    BenchmarkStrings-8               1000000         31143 ns/op      503992 B/op          1 allocs/op
+    BenchmarkStringsBuilder-8       200000000            7.50 ns/op        5 B/op          0 allocs/op
+    BenchmarkBytesBuffer-8          300000000            5.91 ns/op        3 B/op          0 allocs/op
+    PASS
+    ok      github.com/tdewolff/talks/20180821-performance  35.768s
+
+* Benchmark comparison
+
+`go test -bench=. -benchmem >> bench.txt` multiple times
+
+    $ benchstat bench.txt
+    name        time/op
+    GobEncode   13.6ms ± 1%
+    JSONEncode  32.1ms ± 1%
+
+Generate case A and case B benchmark data (eg. for a new commit)
+
+    $ benchstat old.txt new.txt
+    name        old time/op  new time/op  delta
+    GobEncode   13.6ms ± 1%  11.8ms ± 1%  -13.31% (p=0.016 n=4+5)
+    JSONEncode  32.1ms ± 1%  31.8ms ± 1%     ~    (p=0.286 n=4+5)
+
+
+* PProf
+
+Run `go test` with `-cpuprofile=cpu -memprofile=mem`
+
+    $ go tool pprof foo.test cpu
+
+    $ go tool pprof -alloc_space foo.test mem
+
+* PProf CPU
+
+    $ go tool pprof foo.test cpu
+	File: 20180821-performance.test
+	Type: cpu
+	Time: Aug 14, 2018 at 5:56pm (NZST)
+	Duration: 39.64s, Total samples = 59.30s (149.61%)
+	Entering interactive mode (type "help" for commands, "o" for options)
+
+	(pprof) top10
+	Showing nodes accounting for 45900ms, 77.40% of 59300ms total
+	Dropped 136 nodes (cum <= 296.50ms)
+	Showing top 10 nodes out of 104
+		flat  flat%   sum%        cum   cum%
+	26050ms 43.93% 43.93%    26050ms 43.93%  runtime.memmove
+		6930ms 11.69% 55.62%     8980ms 15.14%  runtime.scanobject
+		3380ms  5.70% 61.32%     3380ms  5.70%  runtime.futex
+		2350ms  3.96% 65.28%     2350ms  3.96%  runtime.procyield
+		1360ms  2.29% 67.57%     1360ms  2.29%  runtime.heapBitsForObject
+		1360ms  2.29% 69.87%     1830ms  3.09%  runtime.scanblock
+		1250ms  2.11% 71.97%     1280ms  2.16%  runtime.greyobject
+		1210ms  2.04% 74.01%     1980ms  3.34%  bytes.(*Buffer).WriteString
+		1050ms  1.77% 75.78%     1050ms  1.77%  runtime.memclrNoHeapPointers
+		960ms  1.62% 77.40%     2210ms  3.73%  runtime.sweepone
+
+* PProf CPU
+
+	(pprof) list 2018
+	Total: 59.30s
+	ROUTINE ======================== github.com/tdewolff/talks/20180821-performance.BenchmarkStrings in /people/tdew803/go/src/github.com/tdewolff/talks/20180821-performance/strings_test.go
+		630ms     34.02s (flat, cum) 56.77% of Total
+			.          .      9:func BenchmarkStrings(b *testing.B) {
+			.          .     10:    s := ""
+		 30ms       30ms     11:    for i := 0; i < b.N; i++ {
+			.     29.17s     12:        s += "x"
+			.          .     13:    }
+			.          .     14:}
+			.          .     15:
+			.          .     16:func BenchmarkStringsBuilder(b *testing.B) {
+			.          .     17:    s := strings.Builder{}
+		150ms      150ms     18:    for i := 0; i < b.N; i++ {
+		120ms         2s     19:        s.WriteString("x")
+			.          .     20:    }
+			.          .     21:}
+			.          .     22:
+			.          .     23:func BenchmarkBytesBuffer(b *testing.B) {
+			.          .     24:    s := bytes.Buffer{}
+		190ms      190ms     25:    for i := 0; i < b.N; i++ {
+		140ms      2.12s     26:        s.WriteString("x")
+			.          .     27:    }
+			.          .     28:}
+
+* PProf CPU
+
+	(pprof) web
+
+.image assets/pprof-web.png _ 600
+
+* PProf memory
+    
+	$ go tool pprof -alloc_space foo.test mem
+	File: 20180821-performance.test
+	Type: alloc_space
+	Time: Aug 14, 2018 at 5:56pm (NZST)
+	Entering interactive mode (type "help" for commands, "o" for options)
+
+	(pprof) top10
+	Showing nodes accounting for 575.53GB, 99.53% of 578.27GB total
+	Dropped 19 nodes (cum <= 2.89GB)
+		flat  flat%   sum%        cum   cum%
+	575.53GB 99.53% 99.53%   575.53GB 99.53%  github.com/tdewolff/talks/20180821-performance.BenchmarkStrings
+			0     0% 99.53%   578.27GB   100%  testing.(*B).launch
+			0     0% 99.53%   578.27GB   100%  testing.(*B).runN
+
+* PProf memory
+
+	(pprof) web
+
+.image assets/pprof-web-mem.png _ 800
+
+
+* Strings vs bytes
+
+: What's the difference?

@@ -4,7 +4,7 @@ Taco de Wolff
 tacodewolff [at] gmail.com
 tacodewolff@gmail.com
 
-.link https://github.com/tdewolff/minify
+github.com/tdewolff/minify
 
 : Slow program? Must have a loop.
 : Author of minify
@@ -13,12 +13,61 @@ tacodewolff@gmail.com
 
 * Outline
 
+1. Strings vs Bytes
 1. Benchmarking
 2. Tooling
 3. Go specifics
 4. Strings vs Bytes
 4. Garbage collection
 5. Best practises
+
+
+* Strings vs bytes
+
+What's the difference?
+
+    s := "string 本"
+    b := []byte("bytes 本")
+
+: String literals are UTF-8
+: Range loop over strings returns its runes
+: Strings are immutable
+: Bytes have a capacity
+: Copy necessary when converting!
+
+
+* Byte allocation
+
+What's the difference?
+
+    b1 := []byte{}
+    b2 := []byte("")
+
+
+* Strings vs bytes
+
+	type slice struct {
+		data uintptr
+		len int
+		cap int
+	}
+
+	type string struct {
+		data uintptr
+		len int
+	}
+
+- Byte slices allows more fine-grained control of memory
+
+
+* Set capacity on returned bytes!
+
+.play word.go /START OMIT/,/END OMIT/
+
+
+* Set capacity on returned bytes!
+
+.play word_cap.go /START OMIT/,/END OMIT/
 
 
 * Benchmarking
@@ -37,30 +86,14 @@ foo_test.go
         }
     }
 
-Run with `$ go test -bench=. -benchmem`
+Run as:
+
+    $ go test -bench=. -benchmem
+
 
 * Benchmarking example
 
-    func BenchmarkStrings(b *testing.B) {
-        s := ""
-        for i := 0; i < b.N; i++ {
-            s += "x"
-        }
-    }
-
-    func BenchmarkStringsBuilder(b *testing.B) {
-        s := strings.Builder{}
-        for i := 0; i < b.N; i++ {
-            s.WriteString("x")
-        }
-    }
-
-    func BenchmarkBytesBuffer(b *testing.B) {
-        s := bytes.Buffer{}
-        for i := 0; i < b.N; i++ {
-            s.WriteString("x")
-        }
-    }
+.code strings_test.go /START OMIT/,/END OMIT/
 
 * Benchmarking example output
 
@@ -76,7 +109,11 @@ Run with `$ go test -bench=. -benchmem`
 
 * Benchmark comparison
 
-`go test -bench=. -benchmem >> bench.txt` multiple times
+Run benchmarks multiple time:
+
+    $ go test -bench=. -benchmem >> bench.txt
+
+Then extract statistics:
 
     $ benchstat bench.txt
     name        time/op
@@ -93,10 +130,9 @@ Generate case A and case B benchmark data (eg. for a new commit)
 
 * PProf
 
-Run `go test` with `-cpuprofile=cpu -memprofile=mem`
+    $ go test -bench=. -benchmem -cpuprofile=cpu -memprofile=mem
 
     $ go tool pprof foo.test cpu
-
     $ go tool pprof -alloc_space foo.test mem
 
 * PProf CPU
@@ -179,7 +215,3 @@ Run `go test` with `-cpuprofile=cpu -memprofile=mem`
 
 .image assets/pprof-web-mem.png _ 800
 
-
-* Strings vs bytes
-
-: What's the difference?

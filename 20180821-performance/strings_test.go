@@ -1,11 +1,12 @@
-package talks
+package main
 
 import (
     "testing"
     "bytes"
     "strings"
-   )
+)
 
+// START OMIT
 func BenchmarkStrings(b *testing.B) {
     s := ""
     for i := 0; i < b.N; i++ {
@@ -26,3 +27,4 @@ func BenchmarkBytesBuffer(b *testing.B) {
         s.WriteString("x")
     }
 }
+// END OMIT

@@ -19,7 +19,7 @@ func GetWord(b, word []byte) []byte {
 func main() {
     b := []byte("There was no collusion. Everybody knows there\nwas no collusion.")
     word := GetWord(b, []byte("collusion"))
-    word = append(word, []byte(", it is fake news!")...)
+    word = append(word, []byte(", FAKE NEWS!!")...)
 
     fmt.Println(string(b))
 }

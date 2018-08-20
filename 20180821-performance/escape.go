@@ -6,7 +6,6 @@ func f() *int {
 }
 
 var I int = 10
-
 func g() *int {
     return &I
 }

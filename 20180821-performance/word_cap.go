@@ -10,7 +10,7 @@ func GetWord(b, word []byte) []byte {
     for start := 0; start < len(b)-len(word); start++ {
         end := start+len(word)
         if bytes.Equal(b[start:end], word) {
-            return b[start:end:end] // set capacity!
+            return b[start:end:end] // <<< Set capacity!
         }
     }
     return nil

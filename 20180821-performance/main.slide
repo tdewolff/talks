@@ -4,15 +4,25 @@ Taco de Wolff
 tacodewolff [at] gmail.com
 github.com/tdewolff
 
-: Slow program? Must have a loop.
 : Author of minify
 : Not about O-notation
+
+
+* Outline
+
+1. Benchmarking
+2. Profiling
+3. Strings vs. bytes
+4. Escape analysis
+5. Function inlining
+6. Bounds check elimination
 
 
 * Performance optimization
 
 - Do less work!
 
+: Slow program? Must have a loop.
 : Lower precision
 : More optimal algorithm
 : For Go GC: less memory in heap
@@ -23,72 +33,9 @@ github.com/tdewolff
 - Do less work!
 - Use branch prediction and cache locality to your advantage
 
-: If-statement introduces branches, predicts non-jump usually
+: Mobile CPUs switch gears
+: If-statement => JMP that needs new loads from .text
 : Spatial/temporal locality of data and code keeps L1/L2 cache live
-
-
-* Outline
-
-1. Strings vs. bytes
-2. Benchmarking
-3. PProf
-4. Escape analysis
-5. Function inlining
-6. Bounds check elimination
-
-
-* Strings vs. bytes
-
-What's the difference?
-
-    s := "text 本"
-    b := []byte("text 本")
-
-: String literals are UTF-8
-: Range loop over strings returns its runes
-: Strings are immutable
-: Bytes have a capacity
-: Copy necessary when converting!
-
-
-* Strings vs. bytes
-
-    type slice struct {
-        data uintptr
-        len int
-        cap int
-    }
-
-    type string struct {
-        data uintptr
-        len int
-    }
-
-Byte slices allows more fine-grained control of memory
-
-
-* Byte allocation
-
-How many bytes are allocated?
-
-.play bytes.go /START OMIT/,/END OMIT/
-
-: b1 allocates 3 + 0 words
-: b2,b3 allocate 3 + 4 words, or 32 bytes on heap
-
-
-* Set capacity on returned bytes!
-
-.play word.go /START OMIT/,/END OMIT/
-
-: Forgetting to set capacity will overwrite original slice
-
-
-* Set capacity on returned bytes!
-
-.play word_cap.go /START OMIT/,/END OMIT/
-
-
 * Benchmarking
 
 Idiomatic way for performance measurements
@@ -109,10 +56,13 @@ Run as:
 
     $ go test -bench=. -benchmem
 
+: Use company-wide => standardize benchmarks
+
 
 * Benchmarking example
 
 .code strings_test.go /START OMIT/,/END OMIT/
+
 
 * Benchmarking example output
 
@@ -120,11 +70,12 @@ Run as:
     goos: linux
     goarch: amd64
     pkg: github.com/tdewolff/talks/20180821-performance
-    BenchmarkStrings-8               1000000         31143 ns/op      503992 B/op          1 allocs/op
+    BenchmarkStrings-8                1000000           31143 ns/op   503992 B/op          1 allocs/op
     BenchmarkStringsBuilder-8       200000000            7.50 ns/op        5 B/op          0 allocs/op
     BenchmarkBytesBuffer-8          300000000            5.91 ns/op        3 B/op          0 allocs/op
     PASS
     ok      github.com/tdewolff/talks/20180821-performance  35.768s
+
 
 * Benchmark comparison
 
@@ -149,12 +100,12 @@ Or generate case A and case B benchmark data:
 : Show difference between commits in commit message
 
 
-* PProf
+* Profiling
 
     $ go test -bench=. -benchmem -cpuprofile=cpu -memprofile=mem
 
-    $ go tool pprof foo.test cpu
-    $ go tool pprof -alloc_space foo.test mem
+    $ go tool pprof main.test cpu
+    $ go tool pprof -alloc_space main.test mem
 
 Mem:
 - `alloc_space`
@@ -162,9 +113,10 @@ Mem:
 - `inuse_space`
 - `inuse_objects`
 
-* PProf CPU
 
-    $ go tool pprof foo.test cpu
+* CPU profiling
+
+    $ go tool pprof main.test cpu
     File: 20180821-performance.test
     Type: cpu
     Time: Aug 14, 2018 at 5:56pm (NZST)
@@ -176,7 +128,7 @@ Mem:
     Dropped 136 nodes (cum <= 296.50ms)
     Showing top 10 nodes out of 104
         flat  flat%   sum%        cum   cum%
-    26050ms 43.93% 43.93%    26050ms 43.93%  runtime.memmove
+       26050ms 43.93% 43.93%    26050ms 43.93%  runtime.memmove
         6930ms 11.69% 55.62%     8980ms 15.14%  runtime.scanobject
         3380ms  5.70% 61.32%     3380ms  5.70%  runtime.futex
         2350ms  3.96% 65.28%     2350ms  3.96%  runtime.procyield
@@ -185,9 +137,10 @@ Mem:
         1250ms  2.11% 71.97%     1280ms  2.16%  runtime.greyobject
         1210ms  2.04% 74.01%     1980ms  3.34%  bytes.(*Buffer).WriteString
         1050ms  1.77% 75.78%     1050ms  1.77%  runtime.memclrNoHeapPointers
-        960ms  1.62% 77.40%     2210ms  3.73%  runtime.sweepone
+         960ms  1.62% 77.40%     2210ms  3.73%  runtime.sweepone
 
-* PProf CPU
+
+* CPU profiling
 
     (pprof) list 2018
     Total: 59.30s
@@ -214,15 +167,17 @@ Mem:
             .          .     27:    }
             .          .     28:}
 
-* PProf CPU
+
+* CPU profiling
 
     (pprof) web
 
 .image assets/pprof-web.png _ 600
 
-* PProf memory
+
+* Memory profiling
     
-    $ go tool pprof -alloc_space foo.test mem
+    $ go tool pprof -alloc_space main.test mem
     File: 20180821-performance.test
     Type: alloc_space
     Time: Aug 14, 2018 at 5:56pm (NZST)
@@ -233,19 +188,82 @@ Mem:
     Dropped 19 nodes (cum <= 2.89GB)
         flat  flat%   sum%        cum   cum%
     575.53GB 99.53% 99.53%   575.53GB 99.53%  github.com/tdewolff/talks/20180821-performance.BenchmarkStrings
-            0     0% 99.53%   578.27GB   100%  testing.(*B).launch
-            0     0% 99.53%   578.27GB   100%  testing.(*B).runN
+           0     0% 99.53%   578.27GB   100%  testing.(*B).launch
+           0     0% 99.53%   578.27GB   100%  testing.(*B).runN
 
-* PProf memory
+
+* Memory profiling
 
     (pprof) web
 
 .image assets/pprof-web-mem.png _ 800
 
 
+* Strings vs. bytes
+
+What's the difference?
+
+    s := "text 本"
+    b := []byte("text 本")
+
+    _ = len(s) // 8
+    _ = len(b) // 8
+
+: String literals are UTF-8
+: Range loop over strings returns its runes
+: Strings are immutable
+: Copy necessary when converting!
+: Bytes have a capacity
+
+
+* Strings vs. bytes
+
+    type slice struct {
+        data uintptr
+        len int
+        cap int
+    }
+
+    type string struct {
+        data uintptr
+        len int
+    }
+
+Byte slices allows more fine-grained control of memory
+
+.image assets/bytes.png _ 900
+
+: string is 2 words, slice is 3 words
+
+
+* Byte allocation
+
+How many bytes are allocated?
+
+.play bytes.go /START OMIT/,/END OMIT/
+
+: b1 allocates 3 + 0 words
+: b2,b3 allocate 3 + 4 words, or 32 bytes on heap
+: append function uses capacity to grow/reallocate!
+
+
+* Set capacity on returned bytes!
+
+.play word.go /START OMIT/,/END OMIT/
+
+: Forgetting to set capacity will overwrite original slice
+
+
+* Set capacity on returned bytes!
+
+.play word_cap.go /START OMIT/,/END OMIT/
+
+
 * Escape analysis
 
 .code escape.go
+
+: Go does not tell if variable is allocated on stack or heap
 
 
 * Escape analysis
@@ -255,14 +273,18 @@ Mem:
     ./escape.go:5:12: &i escapes to heap
     ./escape.go:5:12:   from ~r0 (return) at ./escape.go:5:5
     ./escape.go:4:5: moved to heap: i
-    ./escape.go:10:12: &I escapes to heap
-    ./escape.go:10:12:  from ~r0 (return) at ./escape.go:10:5
+    ./escape.go:11:12: &j escapes to heap
+    ./escape.go:11:12:  from ~r0 (return) at ./escape.go:11:5
  
+Assembly output:
 
     $ go run -gcflags='-S' escape.go
     ...
     0x0028 00040 (escape.go:4)    CALL    runtime.newobject(SB)
     ...
+
+: escapes to heap => escapes function scope
+
 
 * Escape analysis
 
@@ -284,6 +306,7 @@ Mem:
            .          .      8:}
     ...
 
+
 * Function inlining
 
 From
@@ -304,36 +327,23 @@ To
 
 * Function inlining
 
-.code inline.go /START OMIT/,/END OMIT/
+Only simple leaf functions
 
-* Function inlining
-
-    $ go run -gcflags='-m' inline.go 
+    $ go run -gcflags='-m' round.go 
     # command-line-arguments
-    ./inline.go:4:6: can inline min
-    ./inline.go:11:6: can inline minThree
-    ./inline.go:12:15: inlining call to min
-    ./inline.go:13:15: inlining call to min
-    ./inline.go:19:21: inlining call to min
-    ./inline.go:25:6: can inline main
-    ./inline.go:16:33: minSlice c does not escape
- 
- 
-* Function inlining - thunk functions
+    ./round.go:5:6: can inline Round
+    ./round.go:10:6: inlining call to Round
+    ...
 
-    type Lexer struct {
-        buf   []byte
-        pos   int // index in buf
-    }
+Thunk functions not yet...
 
-    // function will not be inlined
     func (z *Lexer) Peek(pos int) byte {
-        pos += z.pos
         if pos >= len(z.buf) {
-            z.readMore() // <<< Expensive!
+            return z.expensiveRead(pos)
         }
         return z.buf[pos]
     }
+ 
 
 * Bounds check elimination
 
@@ -348,6 +358,8 @@ into
     }
     c := buf[pos]
 
+: BCE when proven impossible!
+
 
 * Bounds check elimination
     
@@ -358,7 +370,9 @@ into
         return z.buf[pos] // Bounds check!
     }
  
-    func (z *Lexer) Peek(pos uint) byte { // int -> uint
+int => uint
+
+    func (z *Lexer) Peek(pos uint) byte {
         if pos >= len(z.buf) {
             return 0
         }
@@ -382,7 +396,7 @@ into
 
     $ go run -gcflags='-d=ssa/check_bce/debug=1' bce2.go 
     # command-line-arguments
-    ./bounds.go:4:11: Found IsInBounds
+    ./bounds.go:4:7: Found IsInBounds
 
 * Bounds check elimination
 
@@ -413,7 +427,7 @@ into
 * Bounds check elimination
 
     Benchmark4BoundsChecks-8      2000000000           0.61 ns/op
-    Benchmark1BoundsChecks-8      2000000000           0.49 ns/op
+    Benchmark1BoundsCheck-8       2000000000           0.49 ns/op
 
 Difference = 0.12 ns
 

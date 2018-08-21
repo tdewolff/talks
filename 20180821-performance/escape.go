@@ -1,16 +1,17 @@
 package main
 
 func f() *int {
-    i := 6
-    return &i
+	i := 6
+	return &i
 }
 
-var I int = 10
+var j int = 10
+
 func g() *int {
-    return &I
+	return &j
 }
 
 func main() {
-    _ = f()
-    _ = g()
+	_ = f()
+	_ = g()
 }
